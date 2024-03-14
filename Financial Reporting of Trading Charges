@@ -1,0 +1,1315 @@
+import os.path
+
+import pandas as pd
+
+from datetime import date, timedelta
+
+import datetime
+
+import calendar
+
+# import openpyxl as pxpi
+
+import math
+
+import xlsxwriter
+
+from xlsxwriter import workbook
+
+ 
+
+# 1.1 DEFINING DATE VARIABLES
+
+ 
+
+current_year = int(date.today().year)
+
+current_m = date.today().month-1
+
+if current_m == 0:
+
+    current_year = current_year - 1
+
+    current_m = 12
+
+current_month = calendar.month_name[current_m]
+
+current_qtr = (math.ceil(current_m/3.))
+
+current_date = datetime.datetime.now()
+
+input_dt = date.today()
+
+first = input_dt.replace(day=1)
+
+last = first - timedelta(days=1)
+
+last_format = last.strftime("%d-%m-%Y")
+
+ 
+
+# Checking for correct period
+
+print(current_year)
+
+print(current_month)
+
+print(current_qtr)
+
+print(first)
+
+print(last)
+
+print(last_format)
+
+ 
+
+# GFF File name
+
+gff_filename = (
+
+    f'Global Final Figures - {current_month} {current_year} - WIP.xlsx'
+
+)
+
+ 
+
+gff_filename = (
+
+    f'Global Final Figures - {current_month} {current_year} - WIP.xlsx'
+
+)
+
+ 
+
+# GFF Folder path
+
+gff_folder_path = os.path.join(
+
+    'V:\Global Final Figs', str(current_year), 'Q'+ str(current_qtr)
+
+)
+
+ 
+
+# ABN Rec Folder Path
+
+output_path = os.path.join(
+
+    'V:\ABN Reconciliation', str(current_year), str(current_month)
+
+)
+
+ 
+
+# GFF Filepath
+
+gff_filepath = os.path.join(
+
+    gff_folder_path, gff_filename
+
+)
+
+ 
+
+# ABN_Fees_JNL File name
+
+abn_jnl_filename = (
+
+    f'ABN_Fees_JNL_{current_month}_{current_year}.xlsx'
+
+)
+
+ 
+
+# ABN_Fees_JNL Filepath
+
+abn_jnl_filepath = os.path.join(
+
+    output_path, abn_jnl_filename
+
+)
+
+ 
+
+# Reading GFF File
+
+df_gff_data = pd.read_excel(
+
+    gff_filepath,
+
+    sheet_name='DATA',  
+
+    index_col=False
+
+)
+
+ 
+
+# Creating function for extracting London ABN Data
+
+def fetch_gff_kbl_data(row):
+
+    return (row['Supplier'] == 'ABN' and
+
+            row['Billed From'] == 'London' and
+
+            row['Nature'] in ('Busted Trade Fees',
+
+                              'Error Fees',
+
+                              'Error P&L',
+
+                              'Exchange Fees',
+
+                              'Give Up Fees',
+
+                              'Kerbs')
+
+    )
+
+ 
+
+# ABN KBL London DataFrame CR
+
+abn_kbl_data_1 = df_gff_data[df_gff_data.apply(fetch_gff_kbl_data, axis=1)]
+
+ 
+
+# Removing Extra columns
+
+relevant_cols = ['Source CCY',
+
+                 'Source Amount',
+
+                 'Supplier',
+
+                 'Nature',
+
+                 'Billed From',
+
+                 'Broker Code',
+
+                 'Entity'
+
+                 ]
+
+ 
+
+abn_kbl_data_2 = abn_kbl_data_1[relevant_cols]
+
+ 
+
+# Grouping DataFrame per Nature, CCY and Broker Code
+
+df_abn_kbl_3 = abn_kbl_data_2.groupby(
+
+    ['Nature', 'Source CCY', 'Broker Code', 'Entity']).agg({'Source Amount': sum}).reset_index()
+
+ 
+
+# Creating 'Date- Last working date' Column
+
+df_abn_kbl_3['Date_Last working date'] = last_format
+
+ 
+
+# Creating 'Description 1' Column
+
+df_abn_kbl_3['Description 1'] = ''
+
+ 
+
+def generate_description_1(row):
+
+    nature = row['Nature']
+
+    if nature in ('Busted Trade Fees', 'Give Up Fees'):
+
+        return str(last) + ' ' + nature + ' Brokers'
+
+    elif nature in ('Error Fees', 'Error P&L', 'Exchange Fees'):
+
+        return str(last) + ' ABN Charges'
+
+    else:
+
+        return str(last) + ' ABN Kerbs Brokers'
+
+ 
+
+df_abn_kbl_3['Description 1'] = df_abn_kbl_3.apply(generate_description_1, axis=1)
+
+ 
+
+# Creating 'Description 2' Column
+
+df_abn_kbl_3['Description 2'] = ''
+
+ 
+
+def generate_description_2(row):
+
+    nature = row['Nature']
+
+    broker_code = row['Broker Code']
+
+    return current_month + ' ' + nature + ' ' + broker_code
+
+ 
+
+df_abn_kbl_3['Description 2'] = df_abn_kbl_3.apply(generate_description_2, axis=1)
+
+ 
+
+# Creating 'Tax_Code' Column
+
+df_abn_kbl_3['Tax_Code'] = 'GBEXE'
+
+ 
+
+# Creating 'Sage GL Code' Column
+
+df_abn_kbl_3['Sage GL Code'] = ''
+
+ 
+
+def map_sage_codes(row):
+
+    nature = row['Nature']
+
+    if nature in ('Exchange Fees', 'Give Up Fees'):
+
+        return '707872'
+
+    elif nature in ('Kerbs', 'Error Fees', 'Busted Trade Fees'):
+
+        return '707861'
+
+    else:
+
+        return '651162'
+
+ 
+
+df_abn_kbl_3['Sage GL Code'] = df_abn_kbl_3.apply(map_sage_codes, axis=1)
+
+ 
+
+# Creating Blank Columns
+
+df_abn_kbl_3['Blank_1'] = ''
+
+df_abn_kbl_3['Blank_2'] = ''
+
+ 
+
+# Creating 'BP_Code' Column
+
+df_abn_kbl_3['BP_Code'] = ''
+
+ 
+
+# ABN KBL London DataFrame DR - Creating Contra Entries
+
+df_abn_kbl_inverse = df_abn_kbl_3.copy()
+
+df_abn_kbl_inverse['Source Amount'] = df_abn_kbl_inverse['Source Amount'] * -1
+
+ 
+
+# Contra Entry Sage Codes
+
+df_abn_kbl_inverse['Sage GL Code'] = ''
+
+ 
+
+def map_sage_codes_dr(row):
+
+    nature = row['Nature']
+
+    entity = row['Entity']
+
+    if nature in ('Exchange Fees', 'Give Up Fees') and entity in ('DUBAI'):
+
+        return '580225'
+
+    elif nature in ('Exchange Fees', 'Give Up Fees') and entity in ('MSF'):
+
+        return '580240'
+
+    elif nature in ('Exchange Fees', 'Give Up Fees') and entity in ('MSLLP', 'To be split'):
+
+        return '580201'
+
+    elif nature in ('Exchange Fees', 'Give Up Fees') and entity in ('JLLP', 'N1', 'KBL other'):
+
+        return '707870'
+
+    elif nature in ('Kerbs', 'Error Fees', 'Busted Trade Fees') and entity not in ('JLLP', 'N1'):
+
+        return '707860'
+
+    elif nature in ('Kerbs', 'Error Fees', 'Busted Trade Fees') and entity in ('JLLP'):
+
+        return '401750'
+
+    elif nature in ('Kerbs', 'Error Fees', 'Busted Trade Fees') and entity in ('N1'):
+
+        return '401760'
+
+    elif nature in ('Error P&L') and entity not in ('JLLP', 'N1'):
+
+        return '651154'
+
+    elif nature in ('Error P&L') and entity in ('JLLP'):
+
+        return '401750'
+
+    elif nature in ('Error P&L') and entity in ('N1'):
+
+        return '401760'
+
+    else:
+
+        return '111111'
+
+ 
+
+df_abn_kbl_inverse['Sage GL Code'] = df_abn_kbl_inverse.apply(map_sage_codes_dr, axis=1)
+
+ 
+
+# Merging Dr and Cr Entries DF's
+
+df_abn_kbl_master = pd.concat([
+
+    df_abn_kbl_3,
+
+    df_abn_kbl_inverse]
+
+)
+
+ 
+
+# Sorting the DF
+
+df_abn_kbl_master_1 = df_abn_kbl_master.sort_values(by=
+
+    ['Nature', 'Entity', 'Broker Code', 'Source CCY'])
+
+ 
+
+# Setting BP Codes
+
+def set_bpcode_dr(row):
+
+    nature = row['Nature']
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if nature not in ('Exchange Fees', 'Give Up Fees') and first_digit <= 5:
+
+        return 'TRUK' + row['Broker Code']
+
+    else:
+
+        return ''
+
+   
+
+df_abn_kbl_master_1['BP_Code'] = df_abn_kbl_master_1.apply(set_bpcode_dr, axis=1)
+
+ 
+
+# Setting Broker Codes
+
+def set_brkcode_dr(row):
+
+    sage_code = row['Sage GL Code']
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if first_digit <= 5:
+
+        return ''
+
+    elif sage_code == '651162':
+
+        return 'GEOF'
+
+    else:
+
+        return row['Broker Code']
+
+ 
+
+df_abn_kbl_master_1['Broker Code'] = df_abn_kbl_master_1.apply(set_brkcode_dr, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_abn_kbl_master_2 = df_abn_kbl_master_1.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+cols_order = [
+
+    'Sage GL Code',
+
+    'Date_Last working date',
+
+    'Description 1',
+
+    'Description 2',
+
+    'Source CCY',
+
+    'Source Amount',
+
+    'Tax_Code',
+
+    'Blank_1',
+
+    'Blank_2',
+
+    'BP_Code',
+
+    'Broker Code'
+
+]
+
+ 
+
+df_abn_kbl_master_final = df_abn_kbl_master_2[cols_order]
+
+ 
+
+############## MSF DF ##############
+
+ 
+
+# Creating function for extracting London ABN Data
+
+def fetch_gff_msf_data(row):
+
+    return (row['Supplier'] == 'ABN' and
+
+            row['Billed From'] == 'France' and
+
+            row['Nature'] == 'Error P&L'
+
+            )
+
+ 
+
+# ABN KBL London DataFrame CR
+
+abn_msf_data_1 = df_gff_data[df_gff_data.apply(fetch_gff_msf_data, axis=1)]
+
+ 
+
+# Removing Extra columns
+
+relevant_cols = ['Source CCY',
+
+                 'Source Amount',
+
+                 'Supplier',
+
+                 'Nature',
+
+                 'Billed From',
+
+                 'Broker Code',
+
+                 'Entity'
+
+                 ]
+
+ 
+
+abn_msf_data_2 = abn_msf_data_1[relevant_cols]
+
+ 
+
+# Grouping DataFrame per Nature, CCY and Broker Code
+
+df_abn_msf_3 = abn_msf_data_2.groupby(
+
+    ['Nature', 'Source CCY', 'Broker Code', 'Entity']).agg({'Source Amount': sum}).reset_index()
+
+ 
+
+# Creating 'Date- Last working date' Column
+
+df_abn_msf_3['Date_Last working date'] = last_format
+
+ 
+
+# Creating 'Description 1' Column
+
+df_abn_msf_3['Description 1'] = ''
+
+ 
+
+df_abn_msf_3['Description 1'] = df_abn_msf_3.apply(generate_description_1, axis=1)
+
+ 
+
+# Creating 'Description 2' Column
+
+df_abn_msf_3['Description 2'] = ''
+
+ 
+
+df_abn_msf_3['Description 2'] = df_abn_msf_3.apply(generate_description_2, axis=1)
+
+ 
+
+# Creating 'Tax_Code' Column
+
+df_abn_msf_3['Tax_Code'] = 'GBEXE'
+
+ 
+
+# Creating 'Sage GL Code' Column
+
+df_abn_msf_3['Sage GL Code'] = ''
+
+ 
+
+df_abn_msf_3['Sage GL Code'] = df_abn_msf_3.apply(map_sage_codes, axis=1)
+
+ 
+
+# Creating Blank Columns
+
+df_abn_msf_3['Blank_1'] = ''
+
+df_abn_msf_3['Blank_2'] = ''
+
+ 
+
+# Creating 'BP_Code' Column
+
+df_abn_msf_3['BP_Code'] = ''
+
+ 
+
+# ABN MSF DataFrame DR - Creating Contra Entries
+
+df_abn_msf_inverse = df_abn_msf_3.copy()
+
+df_abn_msf_inverse['Source Amount'] = df_abn_msf_inverse['Source Amount'] * -1
+
+ 
+
+# Contra Entry Sage Codes
+
+df_abn_msf_inverse['Sage GL Code'] = ''
+
+ 
+
+def map_msf_sage_codes_dr(row):
+
+    entity = row['Entity']
+
+    if entity in ('DUBAI'):
+
+        return '580256'
+
+    elif entity in ('MSLLP', 'To be split'):
+
+        return '580251'
+
+    elif entity in ('JLLP', 'N1', 'KBL other'):
+
+        return '580240'
+
+    else:
+
+        return '651154'
+
+ 
+
+df_abn_msf_inverse['Sage GL Code'] = df_abn_msf_inverse.apply(map_msf_sage_codes_dr, axis=1)
+
+ 
+
+# Merging Dr and Cr Entries DF's
+
+df_abn_msf_master = pd.concat([
+
+    df_abn_msf_3,
+
+    df_abn_msf_inverse]
+
+)
+
+ 
+
+# Sorting the DF
+
+df_abn_msf_master_1 = df_abn_msf_master.sort_values(by=
+
+    ['Nature', 'Entity', 'Broker Code', 'Source CCY'])
+
+ 
+
+# Setting Broker Codes
+
+def set_msf_brkcode_dr(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if first_digit > 5:
+
+        return 'GEOF'
+
+    else:
+
+        return row['Broker Code']
+
+ 
+
+df_abn_msf_master_1['Broker Code'] = df_abn_msf_master_1.apply(set_msf_brkcode_dr, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_abn_msf_master_2 = df_abn_msf_master_1.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+df_abn_msf_master_final = df_abn_msf_master_2[cols_order]
+
+ 
+
+############### INTERCO MSF - KBL ###############
+
+ 
+
+df_interco_msf_kbl = df_abn_msf_master_1.copy()
+
+msf_kbl_entities = [
+
+    'KBL other',
+
+    'JLLP',
+
+    'N1'
+
+]
+
+ 
+
+df_interco_msf_kbl = df_interco_msf_kbl[df_interco_msf_kbl['Entity'].isin(msf_kbl_entities)]
+
+ 
+
+df_interco_msf_kbl['Source Amount'] = df_interco_msf_kbl['Source Amount'] * -1
+
+ 
+
+# Mapping Sage Codes
+
+def map_msf_kbl_sage_codes(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    entity = row['Entity']
+
+    if entity in ('JLLP') and first_digit == 6:
+
+        return '401750'
+
+    elif entity in ('N1') and first_digit == 6:
+
+        return '401760'
+
+    elif entity in ('KBL other') and first_digit == 6:
+
+        return '651154'
+
+    else:
+
+        return '580240'
+
+ 
+
+df_interco_msf_kbl['Sage GL Code'] = df_interco_msf_kbl.apply(map_msf_kbl_sage_codes, axis=1)
+
+ 
+
+# Creating a function to replace 'GEOF' with actual Broker Code
+
+def update_brkcode(row):
+
+    if row['Broker Code'] == 'GEOF':
+
+        return row['Description 2'][-4:]
+
+    else:
+
+        return row['Broker Code']
+
+ 
+
+df_interco_msf_kbl['Broker Code'] = df_interco_msf_kbl.apply(update_brkcode, axis=1)
+
+ 
+
+# Setting BP Codes
+
+def set_msf_kbl_bpcode(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if first_digit <= 4:
+
+        return 'TRUK' + row['Broker Code']
+
+    else:
+
+        return ''
+
+   
+
+df_interco_msf_kbl['BP_Code'] = df_interco_msf_kbl.apply(set_msf_kbl_bpcode, axis=1)
+
+ 
+
+# Setting Broker Codes
+
+def set_msf_kbl_brkcode(row):
+
+    sage_code = row['Sage GL Code']
+
+    entity = row['Entity']
+
+    if sage_code in ('580240') and entity in ('JLLP', 'N1'):
+
+        return row['Broker Code']
+
+    elif sage_code in ('651154') and entity in ('KBL other'):
+
+        return row['Broker Code']
+
+    else:
+
+        return ''
+
+ 
+
+df_interco_msf_kbl['Broker Code'] = df_interco_msf_kbl.apply(set_msf_kbl_brkcode, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_interco_msf_kbl = df_interco_msf_kbl.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+df_interco_kbl = df_interco_msf_kbl[cols_order]
+
+ 
+
+############### INTERCO MSLLP ###############
+
+df_interco_kbl_msllp = df_abn_kbl_master_1.copy()
+
+ 
+
+msllp_entity = [
+
+    'MSLLP',
+
+    'To be split'
+
+]
+
+ 
+
+interco_nature = [
+
+    'Exchange Fees',
+
+    'Give Up Fees',
+
+    'Error P&L'
+
+]
+
+ 
+
+df_interco_kbl_msllp = df_interco_kbl_msllp[df_interco_kbl_msllp['Entity'].isin(msllp_entity)]
+
+df_interco_kbl_msllp = df_interco_kbl_msllp[df_interco_kbl_msllp['Nature'].isin(interco_nature)]
+
+df_interco_kbl_msllp['Source Amount'] = df_interco_kbl_msllp['Source Amount'] * -1
+
+ 
+
+df_interco_msf_msllp = df_abn_msf_master_1.copy()
+
+df_interco_msf_msllp = df_interco_msf_msllp[df_interco_msf_msllp['Entity'].isin(msllp_entity)]
+
+df_interco_msf_msllp = df_interco_msf_msllp[df_interco_msf_msllp['Nature'].isin(interco_nature)]
+
+df_interco_msf_msllp['Source Amount'] = df_interco_msf_msllp['Source Amount'] * -1
+
+ 
+
+df_interco_msllp = pd.concat([
+
+    df_interco_kbl_msllp,
+
+    df_interco_msf_msllp
+
+])
+
+ 
+
+# Mapping Sage Codes
+
+def map_interco_msllp_sage_codes(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    nature = row['Nature']
+
+    if nature in ('Exchange Fees', 'Give Up Fees') and first_digit == 7:
+
+        return '707870'
+
+    elif nature in ('Exchange Fees', 'Give Up Fees') and first_digit == 5:
+
+        return '580201'
+
+    elif nature in ('Error P&L') and first_digit == 6:
+
+        return '651154'
+
+    elif nature in ('Error P&L') and first_digit == 5:
+
+        return '580251'
+
+    else:
+
+        return 'NO CODE ASSIGNED'
+
+ 
+
+df_interco_msllp['Sage GL Code'] = df_interco_msllp.apply(map_interco_msllp_sage_codes, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_interco_msllp = df_interco_msllp.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+df_interco_msllp = df_interco_msllp[cols_order]
+
+ 
+
+############### INTERCO MSD ###############
+
+df_interco_kbl_msd = df_abn_kbl_master_1.copy()
+
+ 
+
+msd_entity = [
+
+    'DUBAI'
+
+]
+
+ 
+
+df_interco_kbl_msd = df_interco_kbl_msd[df_interco_kbl_msd['Entity'].isin(msd_entity)]
+
+df_interco_kbl_msd = df_interco_kbl_msd[df_interco_kbl_msd['Nature'].isin(interco_nature)]
+
+df_interco_kbl_msd['Source Amount'] = df_interco_kbl_msd['Source Amount'] * -1
+
+ 
+
+df_interco_msf_msd = df_abn_msf_master_1.copy()
+
+df_interco_msf_msd = df_interco_msf_msd[df_interco_msf_msd['Entity'].isin(msd_entity)]
+
+df_interco_msf_msd = df_interco_msf_msd[df_interco_msf_msd['Nature'].isin(interco_nature)]
+
+df_interco_msf_msd['Source Amount'] = df_interco_msf_msd['Source Amount'] * -1
+
+ 
+
+df_interco_msd = pd.concat([
+
+    df_interco_kbl_msd,
+
+    df_interco_msf_msd
+
+])
+
+ 
+
+# Mapping Sage Codes
+
+def update_interco_msd_sgcode(row):
+
+    if row['Sage GL Code'] == '707872':
+
+        return '707870'
+
+    elif row['Sage GL Code'] == '651162':
+
+        return '651154'
+
+    else:
+
+        return row['Sage GL Code']
+
+ 
+
+df_interco_msd['Sage GL Code'] = df_interco_msd.apply(update_interco_msd_sgcode, axis=1)
+
+ 
+
+# Creating a function to replace 'GEOF' with actual Broker Code
+
+def update_interco_msd_brkcode(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if row['Broker Code'] == 'GEOF':
+
+        return row['Description 2'][-4:]
+
+    elif first_digit == 5:
+
+        return ''
+
+    else:
+
+        return row['Broker Code']
+
+ 
+
+df_interco_msd['Broker Code'] = df_interco_msd.apply(update_interco_msd_brkcode, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_interco_msd = df_interco_msd.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+df_interco_msd = df_interco_msd[cols_order]
+
+ 
+
+############### INTERCO MSF ###############
+
+df_interco_msf = df_abn_kbl_master_1.copy()
+
+ 
+
+msf_entity = [
+
+    'MSF'
+
+]
+
+ 
+
+df_interco_msf = df_interco_msf[df_interco_msf['Entity'].isin(msf_entity)]
+
+df_interco_msf = df_interco_msf[df_interco_msf['Nature'].isin(interco_nature)]
+
+df_interco_msf['Source Amount'] = df_interco_msf['Source Amount'] * -1
+
+ 
+
+# Mapping Sage Codes
+
+def update_interco_msf_sgcode(row):
+
+    if row['Sage GL Code'] == '707872':
+
+        return '707870'
+
+    elif row['Sage GL Code'] == '651162':
+
+        return '651154'
+
+    else:
+
+        return row['Sage GL Code']
+
+ 
+
+df_interco_msf['Sage GL Code'] = df_interco_msf.apply(update_interco_msf_sgcode, axis=1)
+
+ 
+
+# Creating a function to replace 'GEOF' with actual Broker Code
+
+def update_interco_msf_brkcode(row):
+
+    first_digit = int(str(row['Sage GL Code'])[0])
+
+    if row['Broker Code'] == 'GEOF':
+
+        return row['Description 2'][-4:]
+
+    elif first_digit == 5:
+
+        return ''
+
+    else:
+
+        return row['Broker Code']
+
+ 
+
+df_interco_msf['Broker Code'] = df_interco_msf.apply(update_interco_msf_brkcode, axis=1)
+
+ 
+
+# Sorting Data & Dropping/Rearranging Cols
+
+ 
+
+df_interco_msf = df_interco_msf.drop(
+
+    ['Nature',
+
+     'Entity'
+
+     ],
+
+     axis=1,
+
+     inplace=False
+
+)
+
+ 
+
+df_interco_msf = df_interco_msf[cols_order]
+
+ 
+
+############### ABN SAGECODE MAPPING ###############
+
+# Mapping Folder Path
+
+mapping_path = (
+
+    'V:\ABN Reconciliation\Mapping'
+
+)
+
+ 
+
+# Mapping File name
+
+mapping_filename = (
+
+    f'ABN_SageGL_Code_Mapping.xlsx'
+
+)
+
+ 
+
+# Mapping Filepath
+
+mapping_filepath = os.path.join(
+
+    mapping_path, mapping_filename
+
+)
+
+ 
+
+# Reading GFF File
+
+abn_sgcode_mapping = pd.read_excel(
+
+    mapping_filepath,
+
+    sheet_name='ACC STATIC',  
+
+    index_col=False
+
+)
+
+ 
+
+############### CONTROL CHECK ###############
+
+df_abn_master = pd.concat([
+
+    df_abn_kbl_master_final,
+
+    df_abn_msf_master_final,
+
+    df_interco_kbl,
+
+    df_interco_msllp,
+
+    df_interco_msd,
+
+    df_interco_msf
+
+])
+
+ 
+
+df_control_check = df_abn_master.pivot_table(
+
+    index='Sage GL Code',
+
+    columns='Source CCY',
+
+    values='Source Amount',
+
+    aggfunc=['sum'],
+
+    margins=False
+
+)
+
+ 
+
+df_control_check = pd.DataFrame(df_control_check)
+
+ 
+
+#####################################################################
+
+ 
+
+# CREATE WRITER OBJECT FOR XLSXWRITER ENGINE
+
+writer = pd.ExcelWriter(abn_jnl_filepath, engine='xlsxwriter')
+
+ 
+
+# OUTPUT TO EXCEL
+
+df_abn_kbl_master_final.to_excel(writer, sheet_name='KBL_ABNfees', header=True, index=False)
+
+df_abn_msf_master_final.to_excel(writer, sheet_name='MSF_ABNfees', header=True, index=False)
+
+df_interco_kbl.to_excel(writer, sheet_name='INTERCO_KBL', header=True, index=False)
+
+df_interco_msllp.to_excel(writer, sheet_name='INTERCO_MSLLP', header=True, index=False)
+
+df_interco_msd.to_excel(writer, sheet_name='INTERCO_MSD', header=True, index=False)
+
+df_interco_msf.to_excel(writer, sheet_name='INTERCO_MSF', header=True, index=False)
+
+abn_sgcode_mapping.to_excel(writer, sheet_name='SageCode_Mapping', header=True, index=False)
+
+df_control_check.to_excel(writer, sheet_name='Control_Check_1', header=True)
+
+ 
+
+workbook = writer.book
+
+ws1 = writer.sheets['KBL_ABNfees']
+
+ws2 = writer.sheets['MSF_ABNfees']
+
+ws3 = writer.sheets['INTERCO_KBL']
+
+ws4 = writer.sheets['INTERCO_MSLLP']
+
+ws5 = writer.sheets['INTERCO_MSD']
+
+ws6 = writer.sheets['INTERCO_MSF']
+
+ws7 = writer.sheets['SageCode_Mapping']
+
+ws8 = writer.sheets['Control_Check_1']
+
+writer.save()
