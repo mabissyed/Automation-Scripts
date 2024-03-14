@@ -1,0 +1,603 @@
+import os.path
+
+import pandas as pd
+
+import numpy as np
+
+import openpyxl
+
+ 
+
+# 1 CREATING FILE NAME
+
+gpp_raw = (
+
+    f'gpp_raw.xlsx'
+
+)
+
+ 
+
+gpp_output = (
+
+    f'gpp_output.xlsx'
+
+)
+
+ 
+
+# 2 CREATING FOLDER PATH
+
+gpp_path = os.path.join(
+
+    'Y:\Automation Requests\GPP automation'
+
+)
+
+ 
+
+# 3 READING GPP FILE
+
+ 
+
+# 3.1 RAW DATA SHEET
+
+gpp_filepath_raw = os.path.join(gpp_path, gpp_raw)
+
+df_gpp_raw = pd.read_excel(
+
+    gpp_filepath_raw,
+
+    sheet_name='raw_data',
+
+    index_col=False,
+
+    usecols=['Trade Date',
+
+             'ISIN',
+
+             'Security',
+
+             'Qty',
+
+             'Net Cons.',  # Split into 2 cols(Cash Value Buy & Sell)
+
+             'CCY',
+
+             'Side',
+
+             'Counterparty',  # Split into 2 cols(Seller & Buyer)
+
+             'Actual Sett. Date'
+
+             ]
+
+)
+
+ 
+
+# print(df_gpp_raw)
+
+ 
+
+# 3.2 CLIENT MAPPING SHEET
+
+df_client_mapping = pd.read_excel(
+
+    gpp_filepath_raw,
+
+    sheet_name='client_mapping',
+
+    index_col=False
+
+)
+
+# print(df_client_mapping)
+
+ 
+
+# 3.3 FX RATE SHEET
+
+df_fx_rates = pd.read_excel(
+
+    gpp_filepath_raw,
+
+    sheet_name='fx_rates',
+
+    index_col=False
+
+)
+
+ 
+
+# 3.4 SECURITY MAPPING SHEET
+
+df_security_mapping = pd.read_excel(
+
+    gpp_filepath_raw,
+
+    sheet_name='security_mapping',
+
+    index_col=False
+
+)
+
+ 
+
+# 4 Drop Empty (NaN) Values
+
+df_gpp_updated = df_gpp_raw.dropna()
+
+# print(df_gpp_updated)
+
+ 
+
+# 5 Creating Buy Side DF
+
+df_gpp_updated_buy = df_gpp_updated[
+
+    df_gpp_updated['Side'] == 'Buy'
+
+]
+
+ 
+
+df_gpp_updated_buy['ISIN'] = df_gpp_updated_buy['ISIN'].astype(str)
+
+ 
+
+# 5.1 Setting Index: ISIN
+
+# df_gpp_updated_buy.set_index(
+
+#     'ISIN',
+
+#     inplace=True
+
+# )
+
+ 
+
+# 5.2 Adding Buyer Country Column
+
+df_gpp_updated_buy['Buyer Country'] = df_gpp_updated_buy['Counterparty'].map(
+
+    df_client_mapping.set_index('Counterparty')['Country']
+
+)
+
+ 
+
+# 5.3 Getting Absolute Value of Qty
+
+df_gpp_updated_buy['Qty_temp'] = abs(
+
+    df_gpp_updated_buy['Qty']).astype(str)
+
+ 
+
+# 5.4 Creating Unique Key Column for Merging (Security, ISIN, Qty, Settlement Date)
+
+df_gpp_updated_buy['Unique_Key'] = df_gpp_updated_buy[['ISIN', 'Security', 'Qty_temp', 'Actual Sett. Date']].apply(
+
+    lambda x: ''.join([str(i)for i in x]), axis=1
+
+)
+
+ 
+
+# 6 Sell Side
+
+df_gpp_updated_sell = df_gpp_updated[
+
+    df_gpp_updated['Side'] == 'Sell'
+
+]
+
+ 
+
+df_gpp_updated_sell['ISIN'] = df_gpp_updated_sell['ISIN'].astype(str)
+
+ 
+
+# # 6.1 Setting Index: ISIN
+
+# df_gpp_updated_sell.set_index(
+
+#     'ISIN',
+
+#     inplace=True
+
+# )
+
+ 
+
+# 6.2 Adding Seller Country Column
+
+df_gpp_updated_sell['Seller Country'] = df_gpp_updated_sell['Counterparty'].map(
+
+    df_client_mapping.set_index('Counterparty')['Country']
+
+)
+
+ 
+
+# 6.3 Getting Absolute Value of Qty
+
+df_gpp_updated_sell['Qty_temp'] = abs(
+
+    df_gpp_updated_sell['Qty']).astype(str)
+
+ 
+
+# 6.4 Creating Unique Key Column for Merging (Security, ISIN, Qty, Settlement Date)
+
+df_gpp_updated_sell['Unique_Key'] = df_gpp_updated_sell[['ISIN', 'Security', 'Qty_temp', 'Actual Sett. Date']].apply(
+
+    lambda x: ''.join([str(i)for i in x]), axis=1
+
+)
+
+ 
+
+# print(df_gpp_updated_sell)
+
+ 
+
+# 7 Identifying Nature of Security (Structured Product vs Bond) for Trades
+
+df_gpp_classified_buy = df_gpp_updated_buy.copy()
+
+df_gpp_classified_buy['Nature'] = df_gpp_classified_buy['Security'].map(
+
+    df_security_mapping.set_index('Security')['Nature']
+
+)
+
+ 
+
+df_gpp_classified_sell = df_gpp_updated_sell.copy()
+
+df_gpp_classified_sell['Nature'] = df_gpp_classified_sell['Security'].map(
+
+    df_security_mapping.set_index('Security')['Nature']
+
+)
+
+ 
+
+# 8 Merged DF
+
+df_gpp_merged = pd.merge(
+
+    df_gpp_classified_buy,
+
+    df_gpp_classified_sell,
+
+    how='inner',
+
+    on='Unique_Key',
+
+    suffixes=('_buy', '_sell')
+
+)
+
+ 
+
+# print(df_gpp_merged)
+
+ 
+
+# 8 CREATING ADDITIONAL COLUMNS
+
+# 8.1 ADDING PNL (CCY) COLUMN
+
+ 
+
+def add(row): return row['Net Cons._buy'] + row['Net Cons._sell']
+
+ 
+
+df_gpp_merged['PnL (CCY)'] = df_gpp_merged.apply(add, axis=1)
+
+ 
+
+# 8.2 ADDING 'USD Rate' COLUMN
+
+df_gpp_merged['USD Rate'] = df_gpp_merged['CCY_buy'].map(
+
+    df_fx_rates.set_index('CCY')['USD FX Rate']
+
+)
+
+ 
+
+# 8.3 ADDING 'PnL (USD)' COLUMN
+
+ 
+
+def divide(row): return int(row['PnL (CCY)'] / row['USD Rate'])
+
+ 
+
+df_gpp_merged['PnL (USD)'] = df_gpp_merged.apply(divide, axis=1)
+
+ 
+
+# 8.4 ADDING 'AED Rate' COLUMN
+
+df_gpp_merged['AED'] = 'AED'
+
+df_gpp_merged['AED Rate'] = df_gpp_merged['AED'].map(
+
+    df_fx_rates.set_index('CCY')['USD FX Rate']
+
+)
+
+ 
+
+# 8.5 ADDING 'PnL (AED)' COLUMN
+
+ 
+
+def multiply_aed(row): return row['PnL (USD)'] * row['AED Rate']
+
+ 
+
+df_gpp_merged['PnL (AED)'] = df_gpp_merged.apply(multiply_aed, axis=1)
+
+ 
+
+# 9 TRANSFORMING DATAFRAME
+
+# 9.1 DROPPING COLUMNS
+
+df_gpp_merged = df_gpp_merged.drop(
+
+    ['Trade Date_sell',
+
+     'Security_sell',
+
+     'Qty_sell',
+
+     'Qty_temp_sell',
+
+     'Qty_temp_buy',
+
+     'CCY_sell',
+
+     'Side_buy',
+
+     'Side_sell',
+
+     'AED',
+
+     'Nature_sell',
+
+     'ISIN_sell',
+
+     'Actual Sett. Date_buy',
+
+     'Actual Sett. Date_sell'
+
+     ],
+
+    axis=1,
+
+    inplace=False
+
+)
+
+ 
+
+# 9.2 RENAMING COLUMNS
+
+df_gpp_merged.rename(
+
+    columns={
+
+        'Trade Date_buy': 'Trade Date',
+
+        'Security_buy': 'Security',
+
+        'Qty_buy': 'Quantity',
+
+        'Net Cons._buy': 'Cash Value Buy',
+
+        'Net Cons._sell': 'Cash Value Sell',
+
+        'Counterparty_buy': 'Buyer',
+
+        'Counterparty_sell': 'Seller',
+
+        'CCY_buy': 'CCY',
+
+        'Nature_buy': 'Nature',
+
+        'ISIN_buy': 'ISIN',
+
+    },
+
+    inplace=True
+
+)
+
+ 
+
+# 9.3 REARRANGING COLUMNS
+
+cols_order = [
+
+    'Trade Date',
+
+    'ISIN',
+
+    'Security',
+
+    'Nature',
+
+    'Quantity',
+
+    'Cash Value Buy',
+
+    'Cash Value Sell',
+
+    'CCY',
+
+    'PnL (CCY)',
+
+    'Seller',
+
+    'Seller Country',
+
+    'Buyer',
+
+    'Buyer Country',
+
+    'USD Rate',
+
+    'PnL (USD)',
+
+    'AED Rate',
+
+    'PnL (AED)'
+
+]
+
+ 
+
+df_gpp_final = df_gpp_merged[cols_order]
+
+ 
+
+# print(df_gpp_final)
+
+ 
+
+# 10 CREATING EXEMPT AND PRINCIPLE DATAFRAMES
+
+# 10.1 EXTRACTING STRUCTURED PRODUCTS
+
+df_principle_sp = df_gpp_final.copy()
+
+df_principle_sp = df_gpp_final[
+
+    df_gpp_final['Nature'] == 'Structured Product'
+
+]
+
+ 
+
+# 10.2 EXTRACTING BONDS
+
+df_bonds = df_gpp_final.copy()
+
+df_bonds = df_gpp_final[
+
+    df_gpp_final['Nature'] == 'Bond'
+
+]
+
+ 
+
+# 10.3 ZERO RATED BOND TRADES (BOTH CPT OUTSIDE UAE & KSA)
+
+excluded_countries = ['UAE', 'KSA (Saudi Arabia)']
+
+df_principle_bonds_zero_rated = df_bonds[(~df_bonds['Seller Country'].isin(
+
+    excluded_countries)) & (~df_bonds['Buyer Country'].isin(excluded_countries))]
+
+ 
+
+# 10.4 EXEMPT BOND TRADES (BOTH CPT INSIDE EITHER UAE OR KSA)
+
+df_exempt_bonds = df_bonds[(df_bonds['Seller Country'].isin(
+
+    excluded_countries)) & (df_bonds['Buyer Country'].isin(excluded_countries))]
+
+ 
+
+# 11 EXTRACTING OUTPUT TO EXCEL
+
+writer = pd.ExcelWriter(gpp_output, engine='xlsxwriter')
+
+ 
+
+df_gpp_final.to_excel(
+
+    writer, sheet_name='Output Data', header=True, index=True
+
+)
+
+ 
+
+df_principle_sp.to_excel(
+
+    writer, sheet_name='Principle Trades SP', header=True, index=True
+
+)
+
+ 
+
+df_principle_bonds_zero_rated.to_excel(
+
+    writer, sheet_name='Principle ZR Bonds Trades', header=True, index=True
+
+)
+
+ 
+
+df_exempt_bonds.to_excel(
+
+    writer, sheet_name='Exempt Bond Trades', header=True, index=True
+
+)
+
+ 
+
+df_client_mapping.to_excel(
+
+    writer, sheet_name='Client Mapping', header=True, index=False
+
+)
+
+ 
+
+df_fx_rates.to_excel(
+
+    writer, sheet_name='FX Rates', header=True, index=False
+
+)
+
+ 
+
+df_security_mapping.to_excel(
+
+    writer, sheet_name='Security Mapping', header=True, index=False
+
+)
+
+ 
+
+wb = writer.book
+
+ws1 = writer.sheets['Output Data']
+
+ws2 = writer.sheets['Principle Trades SP']
+
+ws3 = writer.sheets['Principle ZR Bonds Trades']
+
+ws4 = writer.sheets['Exempt Bond Trades']
+
+# ws3 = writer.sheets['Exempt Trades']
+
+ws7 = writer.sheets['Security Mapping']
+
+ws8 = writer.sheets['Client Mapping']
+
+ws9 = writer.sheets['FX Rates']
+
+ 
+
+writer.save()
