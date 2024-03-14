@@ -1,0 +1,995 @@
+import os.path
+
+import pandas as pd
+
+import datetime
+
+from datetime import date
+
+import calendar
+
+import numpy as np
+
+ 
+
+# 1 DEFINING DATE VARIABLES
+
+ 
+
+# Current Year
+
+current_year = str(date.today().year)
+
+ 
+
+# Previous Year
+
+# previous_year = current_year - 1
+
+ 
+
+# Current Month
+
+current_m = date.today().month-1  # ** Change this to -1 **
+
+if current_m == 0:
+
+    current_m = 12
+
+current_month = calendar.month_name[current_m]
+
+ 
+
+# Previous Month
+
+previous_m = date.today().month-2  # ** Change this to -2 **
+
+if previous_m == 0:
+
+    previous_m = 12
+
+previous_month = calendar.month_name[previous_m]
+
+ 
+
+# 1.1 Period Check
+
+print(current_year)
+
+print(current_month)
+
+print(previous_month)
+
+ 
+
+# 2 DEFINING FILE NAME
+
+ 
+
+# 2.1 CURRENT MONTH FILE
+
+current_month_file = (
+
+    f'{current_month}.csv'
+
+)
+
+ 
+
+# 2.2 PREVIOUS MONTH FILE
+
+previous_month_file = (
+
+    f'{previous_month}.csv'
+
+)
+
+ 
+
+# 2.3 ABN JNL FILE
+
+# abn_jnl_file = 'ABN_JNL.csv'
+
+# abn_summary1 = 'abn_summary1.csv'
+
+# abn_summary2 = 'abn_summary2.csv'
+
+ 
+
+# 2.4 FX RATES FILE
+
+fx_rates_file = (
+
+    f'FX Rates {current_month} {current_year}.xlsx'
+
+)
+
+ 
+
+# 2.5 OPS ERROR FILE
+
+ops_errors_data = (
+
+    f'KBL Error Tracker {current_year}.xlsx'
+
+)
+
+ 
+
+# 2.6 OPS KERBS FILE
+
+ops_kerbs_data = (
+
+    f'KBL Kerb Tracker {current_year}.xlsx'
+
+)
+
+ 
+
+# 2.7 SEALS DATA FILE
+
+ops_seals_data = (
+
+    f'seals_{current_month}_{current_year}.xlsx'
+
+)
+
+ 
+
+# 3 CREATING FOLDERPATHS
+
+ 
+
+current_path = os.path.join(
+
+    'Y:\Automation Requests', 'ABN Automation', 'KBL'
+
+)
+
+ 
+
+previous_path = os.path.join(
+
+    'Y:\Automation Requests', 'ABN Automation', 'KBL'
+
+)
+
+ 
+
+output_path = os.path.join(
+
+    'Y:\Automation Requests', 'ABN Automation'
+
+)
+
+ 
+
+fx_rates_path = os.path.join(
+
+    'Y:\FX Rates', current_year
+
+)
+
+ 
+
+ops_seals_data_path = os.path.join(
+
+    'Y:\Errors, Kerbs, ISINS & Busted Trades', current_year, current_month
+
+)
+
+ 
+
+# 4 READ FILES
+
+ 
+
+# Current Month File
+
+current_filepath = os.path.join(current_path, current_month_file)
+
+df_current = pd.read_csv(current_filepath,
+
+                         usecols=['Processing Date',
+
+                                  'Account',
+
+                                  'Currency',
+
+                                  'Cash Title',
+
+                                  'Opening Balance',
+
+                                  'Change Balance',
+
+                                  'Previous Balance'
+
+                                  ]
+
+                         )
+
+ 
+
+# Previous Month File
+
+previous_filepath = os.path.join(previous_path, previous_month_file)
+
+df_previous = pd.read_csv(previous_filepath,
+
+                          usecols=['Processing Date',
+
+                                   'Account',
+
+                                   'Currency',
+
+                                   'Cash Title',
+
+                                   'Opening Balance',
+
+                                   'Change Balance',
+
+                                   'Previous Balance'
+
+                                   ]
+
+                          )
+
+ 
+
+# FX Rates File
+
+fx_rates_filepath = os.path.join(fx_rates_path, fx_rates_file)
+
+df_fx_rates = pd.read_excel(fx_rates_filepath,
+
+                            usecols='D, E'
+
+                            )
+
+ 
+
+# 5 CREATING UNIQUE KEYS TO MERGE CURRENT & PREVIOUS
+
+ 
+
+# 5.1 CONCAT CURRENT & PREVIOUS DATAFRAMES
+
+df_merged_distinct = pd.concat([
+
+    df_current,
+
+    df_previous]
+
+)
+
+ 
+
+# 5.2 DROP DUPLICATES TO IDENTIFY UNIQUE VALUES (CASH TITLES) IN DF_MERGED_DISTINCT
+
+df_unique_cash_titles_temp = df_merged_distinct[[
+
+    'Cash Title']].drop_duplicates()
+
+df_unique_cash_titles_temp.reset_index()
+
+ 
+
+# 5.3 CREATE A COLUMN WITH ALL UNIQUE 'CURRENCY' VALUES FOR EACH UNIQUE CASH TITLE
+
+currency_unique = df_merged_distinct['Currency'].unique()
+
+df_ccy_unique_temp = pd.DataFrame(currency_unique, columns=['Currency'])
+
+currency_unique_count = df_merged_distinct['Currency'].nunique()
+
+ 
+
+df_unique_cash_titles = df_unique_cash_titles_temp.copy()
+
+df_unique_cash_titles = df_unique_cash_titles_temp['Cash Title'].repeat(
+
+    currency_unique_count)
+
+df_unique_cash_titles = df_unique_cash_titles.reset_index()
+
+ 
+
+ccy_col = np.tile(
+
+    currency_unique, df_unique_cash_titles['Cash Title'].nunique())
+
+df_unique_key = pd.DataFrame({
+
+    'Cash Title': np.repeat(df_unique_cash_titles_temp['Cash Title'],
+
+                            df_merged_distinct['Currency'].nunique()),
+
+    'Currency': ccy_col})
+
+ 
+
+# 5.4 GROUPING BY 'CASH TITLE' & SUMMING 'OPENING BAL' FOR CURRENT & PREVIOUS DF'S
+
+ 
+
+df_current_grouped = df_current.groupby(
+
+    ['Cash Title', 'Currency']).agg({'Opening Balance': sum})
+
+df_previous_grouped = df_previous.groupby(
+
+    ['Cash Title', 'Currency']).agg({'Opening Balance': sum})
+
+ 
+
+# 5.5 MERGING DF_UNIQUE WITH CURRENT DF
+
+df_merged_current = pd.merge(
+
+    df_unique_key,
+
+    df_current_grouped,
+
+    on=['Cash Title', 'Currency'],
+
+    how='left',
+
+    # suffixes=('_key', '_current')
+
+    suffixes=('_key', ('_'+current_month))
+
+)
+
+print(df_merged_current)
+
+# 5.6 MERGING DF_MERGED WITH PREVIOUS DF
+
+df_merged_previous = pd.merge(
+
+    df_merged_current,
+
+    df_previous_grouped,
+
+    on=['Cash Title', 'Currency'],
+
+    how='left',
+
+    # suffixes=('_current', '_previous')
+
+    suffixes=(('_'+current_month), ('_'+previous_month))
+
+)
+
+print(df_merged_previous)
+
+# 5.7 DROPPING NULL ROWS
+
+ 
+
+df_merged_final = df_merged_previous.dropna(
+
+    # subset=['Opening Balance_current', 'Opening Balance_previous'],
+
+    subset=[('Opening Balance_'+current_month),
+
+            ('Opening Balance_'+previous_month)],
+
+    how='all'
+
+)
+
+ 
+
+# 5.8 FILLNA WITH 0
+
+ 
+
+# cols_to_fill = ['Opening Balance_current', 'Opening Balance_previous']
+
+cols_to_fill = [('Opening Balance_'+current_month),
+
+                ('Opening Balance_'+previous_month)]
+
+df_merged_final[cols_to_fill] = df_merged_final[cols_to_fill].fillna(0)
+
+ 
+
+# 5.9 CALCULATING CURRENT MONTH MOVEMENT
+
+ 
+
+# df_merged_final['Current Month Movement'] = df_merged_final['Opening Balance_current'] - \
+
+#     df_merged_final['Opening Balance_previous']
+
+ 
+
+df_merged_final['Current Month Movement'] = df_merged_final[('Opening Balance_'+current_month)] - \
+
+    df_merged_final[('Opening Balance_'+previous_month)]
+
+ 
+
+# 6 MAPPING CASH TITLES
+
+ 
+
+# 6.1 READING FILE NAME
+
+mapping_file = (
+
+    f'KBL Mapping.xlsx'
+
+)
+
+ 
+
+# 6.2 CREATING FOLDER PATH
+
+mapping_path = os.path.join(
+
+    'Y:\Automation Requests\ABN Automation\KBL'
+
+)
+
+ 
+
+# 6.3 READING MAPPING FILE
+
+mapping_filepath = os.path.join(mapping_path, mapping_file)
+
+df_mapping = pd.read_excel(
+
+    mapping_filepath,
+
+    sheet_name='kbl_mapping'
+
+)
+
+ 
+
+# 6.4 MAPPING CAST TITLES WITH FINANCE GROUPING
+
+df_mapped = df_merged_final.copy()
+
+ 
+
+df_mapped_final1 = pd.merge(
+
+    df_mapped,
+
+    df_mapping,
+
+    on='Cash Title',
+
+    how='left'
+
+)
+
+ 
+
+# 7 DF_MAPPED_FINAL TO DATAFRAME
+
+df_mapped_final = pd.DataFrame(df_mapped_final1)
+
+ 
+
+# 8 CREATING NET LIQ DF FROM DF_MAPPED_FINAL
+
+df_netliq_final = df_mapped_final.copy()
+
+df_netliq_final = df_netliq_final[df_netliq_final['Net Liq item'] == 'Yes']
+
+ 
+
+df = df_netliq_final.copy()
+
+ 
+
+# 8.2 SUMMARY 1: CURRENT BAL - PREV BAL = MOVEMENT
+
+ 
+
+df['Opening Balance'] = 'Opening Balance'
+
+df['Closing Balance'] = 'Closing Balance'
+
+df = df.reset_index(drop=True)
+
+ 
+
+# df_current= df.pivot_table('Opening Balance_current', ['Closing Balance'], 'Currency',aggfunc=['sum'], fill_value='-')
+
+# df_previous = df.pivot_table('Opening Balance_previous',['Opening Balance'],'Currency',aggfunc=['sum'],fill_value='-')
+
+ 
+
+df_current = df.pivot_table(('Opening Balance_'+current_month),
+
+                            ['Closing Balance'], 'Currency', aggfunc=['sum'], fill_value='-')
+
+df_previous = df.pivot_table(('Opening Balance_'+previous_month),
+
+                             ['Opening Balance'], 'Currency', aggfunc=['sum'], fill_value='-')
+
+ 
+
+result = df_previous._append(df_current)
+
+ 
+
+df['Movement'] = 'Movement'
+
+ 
+
+result1 = df.pivot_table('Current Month Movement', [
+
+                         'Movement'], 'Currency', aggfunc=['sum'])
+
+ 
+
+result2 = result._append(result1)
+
+ 
+
+# 8.3 SUMMARY 2: MOVEMENT BY FINANCE GROUPINGS
+
+ 
+
+# result3 = df.pivot_table(('Opening Balance_'+current_month),['Finance Grouping'],'Currency',aggfunc=['sum'],fill_value='-',margins=True,margins_name='Grand Total').iloc[:,:-1]
+
+result3 = df.pivot_table('Current Month Movement', ['Finance Grouping'], 'Currency', aggfunc=[
+
+                         'sum'], fill_value='-', margins=True, margins_name='Grand Total').iloc[:, :-1]
+
+ 
+
+result4 = result2._append(result3)
+
+ 
+
+# 8.4 SUMMARY 3: NET LIQ REC
+
+ 
+
+result5 = df.pivot_table(
+
+    index=('Finance Grouping', 'Account', 'Cash Title'),
+
+    # values=['Opening Balance_current', 'Opening Balance_previous'],
+
+    values='Current Month Movement',
+
+    columns='Currency',
+
+    aggfunc=['sum'],
+
+    margins=False
+
+    # margins_name='Grand Total'
+
+)
+
+ 
+
+# 8.5 ABN JNL POSTING
+
+abn_jnl_initial = df.pivot_table(
+
+    index=('Currency', 'Account', 'Finance Grouping'),
+
+    values='Current Month Movement',
+
+    aggfunc=['sum'],
+
+    margins=False
+
+)
+
+print(abn_jnl_initial)
+
+ 
+
+# 8.6 CONVERTING PIVOTS INTO DF
+
+result4 = pd.DataFrame(result4)
+
+result5 = pd.DataFrame(result5)
+
+ 
+
+# 9 FX RATES CALCULATION
+
+df_fx_rates_dict = dict(zip(df_fx_rates['CCY'], df_fx_rates['EUR FX Rates']))
+
+ 
+
+unique_fx_ccy = df['Currency'].unique()
+
+ 
+
+df['EUR_FX_Rate'] = df['Currency'].map(df_fx_rates_dict)
+
+unique_fx_rates = df['EUR_FX_Rate'].unique()
+
+unique_fx_rates = pd.DataFrame(unique_fx_rates, index=unique_fx_ccy)
+
+ 
+
+# 10 CREATE CNTL SHEET
+
+ 
+
+# 10.1 CREATE GIVEUP CHECK
+
+ 
+
+# 10.1.1 READ SEALS FILE
+
+seals_filepath = os.path.join(ops_seals_data_path, ops_seals_data)
+
+df_seals = pd.read_excel(seals_filepath,
+
+                         sheet_name='QTM Trades',
+
+                         usecols=['Agency Fee CCY',
+
+                                  'ABN Agency Fee Amt',
+
+                                  'KBL Agency Pass On Amt',
+
+                                  'Exch GU Fee Amt',
+
+                                  'Local Mrkt Agency Fee Amt',
+
+                                  'ABN Charging Entity'
+
+                                  ]
+
+                         )
+
+ 
+
+# 10.1.2 CREATING KBL SEALS DF
+
+df_seals_KBL = df_seals[df_seals['ABN Charging Entity'] == 'KBL']
+
+ 
+
+df_ops_giveup = df_seals_KBL.copy()
+
+df_ops_giveup['Total'] = df_seals_KBL[['KBL Agency Pass On Amt',
+
+                                       'Exch GU Fee Amt', 'Local Mrkt Agency Fee Amt']].sum(axis=1)
+
+df_ops_giveup = df_ops_giveup.groupby('Agency Fee CCY')[
+
+    'Total'].sum().reset_index()
+
+df_ops_giveup = pd.DataFrame(df_ops_giveup)
+
+ 
+
+# 10.1.4 CALCULATING ABN CHARGED GIVE UP FEES
+
+df_abn_giveup1 = df_netliq_final[df_netliq_final['Finance Grouping']
+
+                                 == 'ABN Exchange & Give up fees']
+
+# df_abn_giveup = df_abn_giveup1.groupby('Currency')[('Opening Balance_'+current_month)].sum().reset_index()
+
+df_abn_giveup = df_abn_giveup1.groupby('Currency')[(
+
+    'Current Month Movement')].sum().reset_index()
+
+df_abn_giveup = pd.DataFrame(df_abn_giveup)
+
+ 
+
+# 10.2 ADDING KERBS CHECK TO CNTL SHEET
+
+ 
+
+# 10.2.1 READ KERBS FILE
+
+kerbs_filepath = os.path.join(ops_seals_data_path, ops_kerbs_data)
+
+df_kerbs = pd.read_excel(kerbs_filepath,
+
+                         sheet_name=current_month,
+
+                         usecols=['ABN Charging Entity',
+
+                                  'Broker Cost (£)_'
+
+                                  ]
+
+                         )
+
+ 
+
+# 10.2.2 CREATING KBL KERBS DF
+
+df_kerbs_KBL = df_kerbs[df_kerbs['ABN Charging Entity'] == 'KBL']
+
+df_kerbs_KBL['Currency'] = 'GBP'
+
+ 
+
+# 10.2.3 CALCULATING OPS KERBS
+
+df_ops_kerbs = df_kerbs_KBL.pivot_table(
+
+    index='Currency',
+
+    values='Broker Cost (£)_',
+
+    aggfunc=['sum'],
+
+    margins=False
+
+)
+
+ 
+
+df_ops_kerbs = pd.DataFrame(df_ops_kerbs)
+
+ 
+
+# 10.2.4 CALCULATING ABN KERBS
+
+df_abn_kerbs1 = df_netliq_final[df_netliq_final['Finance Grouping'] == 'ABN Kerbs']
+
+df_abn_kerbs = df_abn_kerbs1.groupby('Currency')[(
+
+    'Current Month Movement')].sum().reset_index()
+
+df_abn_kerbs = pd.DataFrame(df_abn_kerbs)
+
+ 
+
+# 10.3 ADDING ERRORS CHECK TO CNTL SHEET
+
+ 
+
+# 10.3.1 READ ERRORS FILE
+
+error_filepath = os.path.join(ops_seals_data_path, ops_errors_data)
+
+df_errors = pd.read_excel(error_filepath,
+
+                          sheet_name=current_month,
+
+                          usecols=['ABN Charging Entity',
+
+                                   'P&L (excl fees)',
+
+                                   'CCY'
+
+                                   ]
+
+                          )
+
+ 
+
+df_errors_fees = pd.read_excel(error_filepath,
+
+                               sheet_name=current_month,
+
+                               usecols=['ABN Charging Entity',
+
+                                        'EUR',
+
+                                        'GBP',
+
+                                        'USD',
+
+                                        'CAD',
+
+                                        'CHF',
+
+                                        'ABN Cost (EUR) (EUR)'
+
+                                        ]
+
+                               )
+
+ 
+
+# 10.3.2 CREATING KBL ERRORS DF
+
+df_errors_KBL = df_errors[df_errors['ABN Charging Entity'] == 'KBL']
+
+df_errors_fees_KBL = df_errors_fees[df_errors_fees['ABN Charging Entity'] == 'KBL']
+
+print(df_errors_fees_KBL)
+
+ 
+
+# 10.3.3 CALCULATING OPS ERROR PNL
+
+df_ops_error_pnl = df_errors_KBL.pivot_table(
+
+    index='CCY',
+
+    values='P&L (excl fees)',
+
+    aggfunc=['sum'],
+
+    margins=False
+
+)
+
+ 
+
+df_ops_error_pnl = pd.DataFrame(df_ops_error_pnl)
+
+ 
+
+# 10.3.4 CALCULATING ABN ERROR PNL
+
+df_abn_error_pnl1 = df_netliq_final[df_netliq_final['Finance Grouping'] == 'ABN Errors']
+
+df_abn_error_pnl = df_abn_error_pnl1.groupby(
+
+    'Currency')[('Current Month Movement')].sum().reset_index()
+
+df_abn_error_pnl = pd.DataFrame(df_abn_error_pnl)
+
+ 
+
+# 10.3.5 CALCULATING ABN ERROR PNL (COMPANY)
+
+# 10.3.6 CALCULATING OPS ERROR FEES
+
+ 
+
+error_fees_ccy = ['EUR',
+
+                  'GBP',
+
+                  'USD',
+
+                  'CAD',
+
+                  'CHF',
+
+                  'ABN Cost (EUR) (EUR)']
+
+ 
+
+df_ops_error_fees = df_errors_fees_KBL[[
+
+    'EUR', 'GBP', 'USD', 'CAD', 'CHF', 'ABN Cost (EUR) (EUR)']].sum().to_frame()
+
+ 
+
+# 10.3.7 CALCULATING ABN ERROR FEES !!!(TO CHECK W/ ABID)!!!
+
+df_abn_error_fees1 = df_netliq_final[df_netliq_final['Finance Grouping']
+
+                                     == 'ABN Error Fees (AS)']
+
+df_abn_error_fees = df_abn_error_fees1.groupby(
+
+    'Currency')[('Current Month Movement')].sum()
+
+df_abn_error_fees = pd.DataFrame(df_abn_error_fees)
+
+ 
+
+# 11 OUTPUT FILE
+
+ 
+
+# 11.1 DEFINING OUTPUT FILE
+
+output_file = (
+
+    f'KBL_ABN_REC_v1 {current_month} {current_year}.xlsx'
+
+)
+
+ 
+
+# 11.2 CREATE WRITER OBJECT FOR XLSXWRITER ENGINE
+
+writer = pd.ExcelWriter(output_file, engine='xlsxwriter')
+
+ 
+
+# 11.3 OUTPUT TO EXCEL
+
+result4.to_excel(writer, sheet_name='Movement Summary')
+
+result5.to_excel(writer, sheet_name='Net Liq Rec')
+
+abn_jnl_initial.to_excel(writer, sheet_name='JNL')
+
+df_mapped_final.to_excel(writer, sheet_name='ABN_Data', index=False)
+
+df_mapping.to_excel(writer, sheet_name='Mapping', index=False)
+
+unique_fx_rates.to_excel(writer, sheet_name='FX_Rates')
+
+ 
+
+# GIVE UP FEES CHECK
+
+df_ops_giveup.to_excel(writer, sheet_name='CNTL')
+
+ 
+
+startrow = df_ops_giveup.shape[0] + 5
+
+df_abn_giveup.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+# KERBS CHECK
+
+startrow += df_ops_giveup.shape[0] + 5
+
+df_ops_kerbs.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+startrow += df_ops_kerbs.shape[0] + 5
+
+df_abn_kerbs.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+# ERROR PNL CHECK
+
+startrow += df_abn_kerbs.shape[0] + 5
+
+df_ops_error_pnl.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+startrow += df_ops_error_pnl.shape[0] + 5
+
+df_abn_error_pnl.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+# startrow += df_abn_error_pnl.shape[0] + 5
+
+# df_abn_error_co_pnl.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+# ERROR FEES CHECK
+
+startrow += df_abn_error_pnl.shape[0] + 5
+
+df_ops_error_fees.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+startrow += df_ops_error_fees.shape[0] + 5
+
+df_abn_error_fees.to_excel(writer, sheet_name='CNTL', startrow=startrow)
+
+ 
+
+wb = writer.book
+
+ws1 = writer.sheets['Movement Summary']
+
+ws2 = writer.sheets['Net Liq Rec']
+
+ws3 = writer.sheets['JNL']
+
+ws4 = writer.sheets['CNTL']
+
+ws5 = writer.sheets['ABN_Data']
+
+ws6 = writer.sheets['Mapping']
+
+ws7 = writer.sheets['FX_Rates']
+
+ 
+
+writer.save()
