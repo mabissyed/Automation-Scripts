@@ -1,0 +1,433 @@
+import os.path
+
+import pandas as pd
+
+import datetime
+
+import calendar
+
+import openpyxl as px
+
+import math
+
+ 
+
+# FILE NAME
+
+file = f'KBL Data test.xlsx'
+
+ 
+
+# FOLDER PATH
+
+folder_path = os.path.join(
+
+    'Y:\Sage Historic Data Migration'
+
+)
+
+ 
+
+# Filepath
+
+file_path = os.path.join(
+
+    folder_path, file
+
+)
+
+ 
+
+# Output File
+
+output_file = f'output_KBL_Data_test.xlsx'
+
+ 
+
+# Output Path
+
+output_file_path = os.path.join(
+
+    folder_path, output_file
+
+)
+
+ 
+
+# BALANCE SHEET JNL
+
+ 
+
+# Reading Data File
+
+df_bs_data = pd.read_excel(
+
+    file_path,
+
+    sheet_name='Data BS Trial Balance ',
+
+    index_col=False,
+
+    usecols=[
+
+        'CompanyCode',
+
+        'DocumentDateAccounting',
+
+        'FiscalPeriod',
+
+        'LineAmountNet',
+
+        'CurrencyLedger',
+
+        'New Gl Code',
+
+        'New BP Code'
+
+    ]
+
+)
+
+ 
+
+# DATES TO DATETIME
+
+df_bs_jnl_0 = df_bs_data.copy()
+
+df_bs_jnl_0['DT_DocumentDateAccounting'] = pd.to_datetime(
+
+    df_bs_jnl_0['DocumentDateAccounting'])
+
+ 
+
+df_bs_jnl_0['LastDateOfTheMonth'] = df_bs_jnl_0['DT_DocumentDateAccounting'] + \
+
+    pd.offsets.MonthEnd(0)
+
+ 
+
+# Grouping & Aggregating DataFrame
+
+df_bs_jnl_1 = df_bs_jnl_0.groupby(
+
+    ['CompanyCode', 'LastDateOfTheMonth', 'New Gl Code', 'CurrencyLedger']).agg({'LineAmountNet': sum}).reset_index()
+
+ 
+
+# Adding New cols
+
+df_bs_jnl_1['New Journal'] = 'No'
+
+df_bs_jnl_1['Doc Type'] = ''
+
+df_bs_jnl_1['To Reverse'] = ''
+
+df_bs_jnl_1['Reversing Date'] = ''
+
+df_bs_jnl_1['BPR (Lines control accounts)'] = ''
+
+df_bs_jnl_1['Tax Code (Lines)'] = '999'
+
+df_bs_jnl_1['Description (Lines)'] = ''
+
+df_bs_jnl_1['Free Reference'] = ''
+
+df_bs_jnl_1['Trader'] = 'TAKEON'
+
+df_bs_jnl_1['Desk/Dpt'] = ''
+
+df_bs_jnl_1['Support/Broker'] = ''
+
+df_bs_jnl_1['Entity'] = ''
+
+df_bs_jnl_1['Product'] = ''
+
+df_bs_jnl_1['Counterparty'] = ''
+
+ 
+
+# Removing MS from Company Code
+
+df_bs_jnl_1['CompanyCode'] = df_bs_jnl_1['CompanyCode'].str.replace(
+
+    'MS', '', regex=False)
+
+ 
+
+# Updating Date column to String literal
+
+df_bs_jnl_1['LastDateOfTheMonth'] = df_bs_jnl_1['LastDateOfTheMonth'].dt.strftime(
+
+    '%m/%d/%Y')
+
+ 
+
+# Updating Description Col
+
+df_bs_jnl_1['Description (Lines)'] = 'For the Period ' + \
+
+    df_bs_jnl_1['LastDateOfTheMonth']
+
+df_bs_jnl_1['Free Reference'] = 'For the Period ' + \
+
+    df_bs_jnl_1['LastDateOfTheMonth']
+
+ 
+
+# Sorting Column Order
+
+col_order_bs = [
+
+    'New Journal',
+
+    'CompanyCode',
+
+    'Doc Type',
+
+    'To Reverse',
+
+    'Reversing Date',
+
+    'New Gl Code',
+
+    'LastDateOfTheMonth',
+
+    'LineAmountNet',
+
+    'BPR (Lines control accounts)',
+
+    'CurrencyLedger',
+
+    'Tax Code (Lines)',
+
+    'Description (Lines)',
+
+    'Free Reference',
+
+    'Trader',
+
+    'Desk/Dpt',
+
+    'Support/Broker',
+
+    'Entity',
+
+    'Product',
+
+    'Counterparty'
+
+]
+
+ 
+
+df_bs_jnl_1 = df_bs_jnl_1[col_order_bs]
+
+ 
+
+print(df_bs_jnl_1.head())
+
+ 
+
+# PNL JNL
+
+ 
+
+# Reading Data File
+
+df_pnl_data = pd.read_excel(
+
+    file_path,
+
+    sheet_name='P&L invidivual data',
+
+    index_col=False,
+
+    usecols=[
+
+        'CompanyCode',
+
+        'DocumentDateAccounting',
+
+        'FiscalPeriod',
+
+        'LineAmountNet',
+
+        'CurrencyLedger',
+
+        'New Code',
+
+        'new Dimension',
+
+        'Counterparty '
+
+    ]
+
+)
+
+ 
+
+# Dates to Datetime
+
+df_pnl_jnl_0 = df_pnl_data.copy()
+
+df_pnl_jnl_0['DT_DocumentDateAccounting'] = pd.to_datetime(
+
+    df_pnl_jnl_0['DocumentDateAccounting']
+
+)
+
+ 
+
+df_pnl_jnl_0['LastDateOfTheMonth'] = df_pnl_jnl_0['DT_DocumentDateAccounting'] + \
+
+    pd.offsets.MonthEnd(0)
+
+ 
+
+# Grouping & Aggregating DataFrame
+
+df_pnl_jnl_1 = df_pnl_jnl_0.groupby(
+
+    ['CompanyCode', 'LastDateOfTheMonth', 'New Code', 'CurrencyLedger', 'new Dimension', 'Counterparty ']).agg({'LineAmountNet': sum}).reset_index()
+
+ 
+
+# Adding New cols
+
+df_pnl_jnl_1['New Journal'] = 'No'
+
+df_pnl_jnl_1['Doc Type'] = ''
+
+df_pnl_jnl_1['To Reverse'] = ''
+
+df_pnl_jnl_1['Reversing Date'] = ''
+
+df_pnl_jnl_1['BPR (Lines control accounts)'] = ''
+
+df_pnl_jnl_1['Tax Code (Lines)'] = '999'
+
+df_pnl_jnl_1['Description (Lines)'] = ''
+
+df_pnl_jnl_1['Free Reference'] = ''
+
+df_pnl_jnl_1['Desk/Dpt'] = ''
+
+df_pnl_jnl_1['Support/Broker'] = ''
+
+df_pnl_jnl_1['Entity'] = ''
+
+df_pnl_jnl_1['Product'] = ''
+
+ 
+
+# Removing MS from Company Code
+
+df_pnl_jnl_1['CompanyCode'] = df_pnl_jnl_1['CompanyCode'].str.replace(
+
+    'MS', '', regex=False)
+
+ 
+
+# Updating Date column to String literal
+
+df_pnl_jnl_1['LastDateOfTheMonth'] = df_pnl_jnl_1['LastDateOfTheMonth'].dt.strftime(
+
+    '%m/%d/%Y')
+
+ 
+
+# Updating Description Col
+
+df_pnl_jnl_1['Description (Lines)'] = 'For the Period ' + \
+
+    df_pnl_jnl_1['LastDateOfTheMonth']
+
+df_pnl_jnl_1['Free Reference'] = 'For the Period ' + \
+
+    df_pnl_jnl_1['LastDateOfTheMonth']
+
+ 
+
+# Sorting Column Order
+
+col_order_pnl = [
+
+    'New Journal',
+
+    'CompanyCode',
+
+    'Doc Type',
+
+    'To Reverse',
+
+    'Reversing Date',
+
+    'New Code',
+
+    'LastDateOfTheMonth',
+
+    'LineAmountNet',
+
+    'BPR (Lines control accounts)',
+
+    'CurrencyLedger',
+
+    'Tax Code (Lines)',
+
+    'Description (Lines)',
+
+    'Free Reference',
+
+    'new Dimension',
+
+    'Desk/Dpt',
+
+    'Support/Broker',
+
+    'Entity',
+
+    'Product',
+
+    'Counterparty '
+
+]
+
+ 
+
+df_pnl_jnl_1 = df_pnl_jnl_1[col_order_pnl]
+
+ 
+
+print(df_pnl_jnl_1.head())
+
+ 
+
+# CREATE WRITER OBJECT FOR XLSXWRITER ENGINE
+
+writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
+
+ 
+
+# OUTPUT TO EXCEL
+
+df_bs_jnl_1.to_excel(
+
+    writer, sheet_name='KBL_BalanceSheet', header=True, index=False)
+
+ 
+
+df_pnl_jnl_1.to_excel(
+
+    writer, sheet_name='KBL_PNL', header=True, index=False)
+
+ 
+
+wb = writer.book
+
+ws1 = writer.sheets['KBL_BalanceSheet']
+
+ws2 = writer.sheets['KBL_PNL']
+
+ 
+
+writer.save()
