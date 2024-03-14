@@ -1,0 +1,501 @@
+from csv import excel
+
+import win32com.client as win32
+
+import pandas as pd
+
+import numpy as np
+
+ 
+
+# Filters for Give Up Fees
+
+ 
+
+def insert_pt_field_set1(pt_1):
+
+    fields_rows = {}
+
+    fields_rows['Sales Broker'] = pt_1.PivotFields('Sales Broker')
+
+ 
+
+    field_values = {}
+
+    field_values['EUR Comission charged to broker'] = pt_1.PivotFields(
+
+        'KBL Agency Pass On Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Sales Broker'].Orientation = 1
+
+    fields_rows['Sales Broker'].Position = 1
+
+ 
+
+    # insert data fields
+
+    field_values['EUR Comission charged to broker'].Orientation = 4
+
+    field_values['EUR Comission charged to broker'].Function = -4157
+
+    field_values['EUR Comission charged to broker'].NumberFormat = '#,##0.00'
+
+ 
+
+# Filters for Exchange Fees
+
+ 
+
+def insert_pt_field_set2(pt_2):
+
+    fields_rows = {}
+
+    fields_rows['Sales Broker'] = pt_2.PivotFields('Sales Broker')
+
+ 
+
+    fields_columns = {}
+
+    fields_columns['Agency Fee CCY'] = pt_2.PivotFields('Agency Fee CCY')
+
+ 
+
+    field_values = {}
+
+    field_values['ABN Exch Fees Charge'] = pt_2.PivotFields(
+
+        'Exch GU Fee Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Sales Broker'].Orientation = 1
+
+    fields_rows['Sales Broker'].Position = 1
+
+ 
+
+    # insert column fields to pivot table design
+
+    fields_columns['Agency Fee CCY'].Orientation = 2
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['ABN Exch Fees Charge'].Orientation = 4
+
+    field_values['ABN Exch Fees Charge'].Function = -4157
+
+    field_values['ABN Exch Fees Charge'].NumberFormat = '#,##0.00'
+
+ 
+
+# Filters for ABN Agency Charge
+
+ 
+
+def insert_pt_field_set3(pt_3):
+
+    fields_rows = {}
+
+    fields_rows['Sales Broker'] = pt_3.PivotFields('Sales Broker')
+
+ 
+
+    fields_columns = {}
+
+    fields_columns['Agency Fee CCY'] = pt_3.PivotFields('Agency Fee CCY')
+
+ 
+
+    field_values = {}
+
+    field_values['Local CCY Comms charged to broker'] = pt_3.PivotFields(
+
+        'Local Mrkt Agency Fee Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Sales Broker'].Orientation = 1
+
+    fields_rows['Sales Broker'].Position = 1
+
+ 
+
+    # insert column fields to pivot table design
+
+    fields_columns['Agency Fee CCY'].Orientation = 2
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['Local CCY Comms charged to broker'].Orientation = 4
+
+    field_values['Local CCY Comms charged to broker'].Function = -4157
+
+    field_values['Local CCY Comms charged to broker'].NumberFormat = '#,##0.00'
+
+ 
+
+# Financial Summary Sheet: Filters for ABN Agency Charge
+
+ 
+
+def insert_pt_field_set4(pt_4):
+
+    fields_rows = {}
+
+    fields_rows['Entity'] = pt_4.PivotFields('ABN Charging Entity')
+
+    fields_rows['CCY'] = pt_4.PivotFields('Agency Fee CCY')
+
+ 
+
+    field_values = {}
+
+    field_values['ABN Agency Charge'] = pt_4.PivotFields('ABN Agency Fee Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Entity'].Orientation = 1
+
+    fields_rows['Entity'].Position = 1
+
+    fields_rows['CCY'].Orientation = 1
+
+    fields_rows['CCY'].Position = 2
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['ABN Agency Charge'].Orientation = 4
+
+    field_values['ABN Agency Charge'].Function = -4157
+
+    field_values['ABN Agency Charge'].NumberFormat = '#,##0.00'
+
+ 
+
+# Financial Summary Sheet: Filters for ABN Exch Fee Charge
+
+ 
+
+def insert_pt_field_set5(pt_5):
+
+    fields_rows = {}
+
+    fields_rows['Entity'] = pt_5.PivotFields('ABN Charging Entity')
+
+    fields_rows['CCY'] = pt_5.PivotFields('Agency Fee CCY')
+
+ 
+
+    field_values = {}
+
+    field_values['ABN Exch Fee Charge'] = pt_5.PivotFields(
+
+        'Exch GU Fee Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Entity'].Orientation = 1
+
+    fields_rows['Entity'].Position = 1
+
+    fields_rows['CCY'].Orientation = 1
+
+    fields_rows['CCY'].Position = 2
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['ABN Exch Fee Charge'].Orientation = 4
+
+    field_values['ABN Exch Fee Charge'].Function = -4157
+
+    field_values['ABN Exch Fee Charge'].NumberFormat = '#,##0.00'
+
+ 
+
+# Financial Summary Sheet: Filters for Give Up Fee Charged to Brokers - EUR
+
+ 
+
+def insert_pt_field_set6(pt_6):
+
+    fields_rows = {}
+
+    fields_rows['Entity'] = pt_6.PivotFields('ABN Charging Entity')
+
+ 
+
+    field_values = {}
+
+    field_values['Give Up Fees_EUR'] = pt_6.PivotFields(
+
+        'KBL Agency Pass On Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Entity'].Orientation = 1
+
+    fields_rows['Entity'].Position = 1
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['Give Up Fees_EUR'].Orientation = 4
+
+    field_values['Give Up Fees_EUR'].Function = -4157
+
+    field_values['Give Up Fees_EUR'].NumberFormat = '#,##0.00'
+
+ 
+
+# Financial Summary Sheet: Filters for Give Up Fee Charged to Brokers - Local CCY
+
+ 
+
+def insert_pt_field_set7(pt_7):
+
+    fields_rows = {}
+
+    fields_rows['Entity'] = pt_7.PivotFields('ABN Charging Entity')
+
+    fields_rows['CCY'] = pt_7.PivotFields('Agency Fee CCY')
+
+ 
+
+    field_values = {}
+
+    field_values['Give Up Fees_LocalCCY'] = pt_7.PivotFields(
+
+        'Local Mrkt Agency Fee Amt')
+
+ 
+
+    # insert row fields to pivot table design
+
+    fields_rows['Entity'].Orientation = 1
+
+    fields_rows['Entity'].Position = 1
+
+    fields_rows['CCY'].Orientation = 1
+
+    fields_rows['CCY'].Position = 2
+
+ 
+
+    # insert data fields to pivot table design
+
+    field_values['Give Up Fees_LocalCCY'].Orientation = 4
+
+    field_values['Give Up Fees_LocalCCY'].Function = -4157
+
+    field_values['Give Up Fees_LocalCCY'].NumberFormat = '#,##0.00'
+
+ 
+
+# Launch Excel Application
+
+xlApp = win32.Dispatch('Excel.Application')
+
+xlApp.Visible = True
+
+ 
+
+# Reference Workbook
+
+wb = xlApp.Workbooks.open(
+
+    "V:/Errors, Kerbs, ISINS & Busted Trades/2024/Seals_feb_2024.xlsx")
+
+ 
+
+# Create relevant sheets
+
+ws_GiveUpFees = wb.Worksheets.Add()
+
+ws_GiveUpFees.Name = "Give Up Fees"
+
+ws_ExchFees = wb.Worksheets.Add()
+
+ws_ExchFees.Name = "Exchange Fees"
+
+ws_ABNChg = wb.Worksheets.Add()
+
+ws_ABNChg.Name = "ABN Agency Charge"
+
+ws_FinSumm = wb.Worksheets.Add()
+
+ws_FinSumm.Name = "Financial Summary"
+
+ 
+
+# Reference Worksheets
+
+ws_data = wb.Worksheets('QTM Trades')
+
+ws_GiveUpFees = wb.Worksheets('Give Up Fees')
+
+ws_ExchFees = wb.Worksheets('Exchange Fees')
+
+ws_ABNChg = wb.Worksheets('ABN Agency Charge')
+
+ws_FinSumm = wb.Worksheets('Financial Summary')
+
+ 
+
+# Create a pivot table cache connection
+
+pt_cache = wb.PivotCaches().Create(1, ws_data.Range('A1').CurrentRegion)
+
+ 
+
+# create pivot table designer/editor
+
+pt_1 = pt_cache.CreatePivotTable(ws_GiveUpFees.Range(
+
+    'A2'), 'EUR Commission Charged to Brokers')
+
+pt_2 = pt_cache.CreatePivotTable(ws_ExchFees.Range('A2'), 'Exchange Fees')
+
+pt_3 = pt_cache.CreatePivotTable(ws_ABNChg.Range('A2'), 'ABN Agency Charge')
+
+pt_4 = pt_cache.CreatePivotTable(ws_FinSumm.Range('A2'), 'ABN Agency Charge')
+
+pt_5 = pt_cache.CreatePivotTable(ws_FinSumm.Range('E2'), 'ABN Exch Fee Charge')
+
+pt_6 = pt_cache.CreatePivotTable(
+
+    ws_FinSumm.Range('I2'), 'Broker Agency Charge EUR')
+
+pt_7 = pt_cache.CreatePivotTable(ws_FinSumm.Range(
+
+    'L2'), 'Broker Agency Charge Local CCY')
+
+ 
+
+# Toggle Grand Totals
+
+pt_1.ColumnGrand = True
+
+pt_1.RowGrand = False
+
+pt_2.ColumnGrand = True
+
+pt_2.RowGrand = True
+
+pt_3.ColumnGrand = True
+
+pt_3.RowGrand = True
+
+pt_4.ColumnGrand = True
+
+pt_4.RowGrand = False
+
+pt_5.ColumnGrand = True
+
+pt_5.RowGrand = False
+
+pt_6.ColumnGrand = True
+
+pt_6.RowGrand = False
+
+pt_7.ColumnGrand = True
+
+pt_7.RowGrand = False
+
+ 
+
+# change subtotal location
+
+pt_1.SubtotalLocation(2)  # bottom(1 = top)
+
+pt_2.SubtotalLocation(2)
+
+pt_3.SubtotalLocation(2)
+
+pt_4.SubtotalLocation(1)
+
+pt_5.SubtotalLocation(1)
+
+pt_7.SubtotalLocation(1)
+
+ 
+
+# change report layout
+
+pt_1.RowAxisLayout(1)
+
+pt_2.RowAxisLayout(1)
+
+pt_3.RowAxisLayout(1)
+
+pt_4.RowAxisLayout(1)
+
+pt_5.RowAxisLayout(1)
+
+pt_6.RowAxisLayout(1)
+
+pt_7.RowAxisLayout(1)
+
+ 
+
+# change pivot table style
+
+pt_1.TableStyle2 = 'PivotStyleMedium9'
+
+pt_2.TableStyle2 = 'PivotStyleMedium9'
+
+pt_3.TableStyle2 = 'PivotStyleMedium9'
+
+pt_4.TableStyle2 = 'PivotStyleMedium9'
+
+pt_5.TableStyle2 = 'PivotStyleMedium9'
+
+pt_6.TableStyle2 = 'PivotStyleMedium9'
+
+pt_7.TableStyle2 = 'PivotStyleMedium9'
+
+ 
+
+# Create Calculation Sheets
+
+insert_pt_field_set1(pt_1)
+
+insert_pt_field_set2(pt_2)
+
+insert_pt_field_set3(pt_3)
+
+insert_pt_field_set4(pt_4)
+
+insert_pt_field_set5(pt_5)
+
+insert_pt_field_set6(pt_6)
+
+insert_pt_field_set7(pt_7)
+
+ 
+
+# Save file
+
+wb.SaveAs("V:\\Errors, Kerbs, ISINS & Busted Trades\\2024\Seals_February_2024.xlsx")
