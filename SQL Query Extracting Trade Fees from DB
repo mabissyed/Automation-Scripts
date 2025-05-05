@@ -1,0 +1,175 @@
+drop table if exists [gff_jnl].[dbo].[gff_jnl_london];
+
+(
+
+SELECT
+
+       cast('' as char(15)) as [Sage GL Code],
+
+       EOMONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS [Date- Last working date],
+
+       CONCAT(EOMONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))), ' ', (CASE WHEN [Nature] = 'Give Up Fees' THEN  'Give Up Fees Brokers' WHEN [Nature] IN ('Exchange Fees', 'Error P&L', 'Error Fees') THEN 'ABN Charges' WHEN [Nature] = 'Kerbs' THEN 'ABN Kerbs Brokers' ELSE 'ABN Busted Trade Brokers' END)) AS [Description 1],
+
+       CONCAT(DATENAME(MONTH, DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))), ' ',[Nature], ' ', [Broker Code]) AS [Description 2],
+
+       --[Entity],
+
+       [Broker Code] AS [Broker_Code],
+
+       [Source CCY],
+
+       [Nature],
+
+       [Supplier],
+
+       [Billed From],
+
+       cast('GBEXE' AS varchar) AS [Tax_Code],
+
+       cast('' AS varchar) AS [Blank1],
+
+       cast('' AS varchar) AS [Blank2],
+
+       SUM([Source Amount]) AS [Source_Amt]
+
+INTO [gff_jnl].[dbo].[gff_jnl_london]
+
+FROM [gff_jnl].[dbo].[gff_data]
+
+WHERE
+
+       ([Billed From] = 'London')
+
+       -- AND
+
+       -- ([Entity] IN ('JLLP', 'KBL other', 'N1'))
+
+       AND
+
+       (([Nature] = 'Give Up Fees')
+
+       OR ([Nature] = 'Exchange Fees' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Error P&L' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Error Fees' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Kerbs' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Busted Trade Fees' AND [Supplier] = 'ABN'))
+
+GROUP BY
+
+       [Broker Code], [Source CCY], [Nature], [Supplier], [Billed From]
+
+ 
+
+UNION
+
+ 
+
+SELECT
+
+       cast('' as char(15)) as [Sage GL Code],
+
+       EOMONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS [Date- Last working date],
+
+       CONCAT(EOMONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))), ' ', (CASE WHEN [Nature] = 'Give Up Fees' THEN  'Give Up Fees Brokers' WHEN [Nature] IN ('Exchange Fees', 'Error P&L', 'Error Fees') THEN 'ABN Charges' WHEN [Nature] = 'Kerbs' THEN 'ABN Kerbs Brokers' ELSE 'ABN Busted Trade Brokers' END)) AS [Description 1],
+
+       CONCAT(DATENAME(MONTH, DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))), ' ',[Nature], ' ', [Broker Code]) AS [Description 2],
+
+       --[Entity],
+
+       [Broker Code] AS [Broker_Code],
+
+       --[Entity],
+
+       [Source CCY],
+
+       [Nature],
+
+       [Supplier],
+
+       [Billed From],
+
+       cast('GBEXE' AS varchar) AS [Tax_Code],
+
+       cast('' AS varchar) AS [Blank1],
+
+       cast('' AS varchar) AS [Blank2],
+
+       SUM([Source Amount]*-1) AS [Source_Amt]
+
+FROM [gff_jnl].[dbo].[gff_data]
+
+WHERE
+
+       ([Billed From] = 'London')
+
+       -- AND
+
+       -- ([Entity] IN ('JLLP', 'KBL other', 'N1'))
+
+       AND
+
+       (([Nature] = 'Give Up Fees')
+
+       OR ([Nature] = 'Exchange Fees' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Error P&L' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Error Fees' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Kerbs' AND [Supplier] = 'ABN')
+
+       OR ([Nature] = 'Busted Trade Fees' AND [Supplier] = 'ABN'))
+
+GROUP BY
+
+       [Broker Code], [Source CCY], [Nature], [Supplier], [Billed From]
+
+ 
+
+-- END
+
+)
+
+-- London JNL
+
+ 
+
+SELECT
+
+       [Sage GL Code],
+
+       [Date- Last working date],
+
+       [Description 1],
+
+       [Description 2],
+
+       [Source CCY],
+
+       [Source_Amt],
+
+       [Tax_Code],
+
+       [Blank1],
+
+       [Blank2],
+
+       --[Entity-Broker]
+
+       [Broker_Code]
+
+INTO #TempLondonJnl
+
+FROM [gff_jnl].[dbo].[gff_jnl_london]
+
+ORDER BY [Description 2], [Nature];
+
+ 
+
+SELECT *
+
+FROM #TempLondonJnl;
